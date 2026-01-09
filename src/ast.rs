@@ -1,6 +1,6 @@
-use std::ops::Range;
+use std::{any::TypeId, mem::transmute, ops::Range};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Spanned<T> {
     pub value: T,
     pub span: Range<usize>,
@@ -9,6 +9,15 @@ pub struct Spanned<T> {
 impl<T> Spanned<T> {
     pub fn new(value: T, span: Range<usize>) -> Self {
         Self { value, span }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EntityID((TypeId, usize));
+
+impl<T: Sized> From<&T> for EntityID {
+    fn from(value: &T) -> Self {
+        Self((typeid::of::<T>(), unsafe { transmute(value) }))
     }
 }
 
@@ -120,6 +129,16 @@ pub enum Expression<'input> {
     ReturnExpression(ReturnExpression<'input>),
 }
 
+impl Expression<'_> {
+    pub fn span(&self) -> Range<usize> {
+        match self {
+            Expression::OrExpression(or_expression) => or_expression.span.clone(),
+            Expression::NewExpression(new_expression) => new_expression.span.clone(),
+            Expression::ReturnExpression(return_expression) => return_expression.span.clone(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct OrExpression<'input> {
     pub first: AndExpression<'input>,
@@ -214,6 +233,23 @@ pub enum PrimaryLeft<'input> {
     StringLiteral {
         literal: Literal<'input>,
     },
+}
+
+impl PrimaryLeft<'_> {
+    pub fn span(&self) -> Range<usize> {
+        match self {
+            PrimaryLeft::Literal {
+                literal,
+                function_call,
+            } => match function_call {
+                Some(function_call) => literal.span.start..function_call.span.end,
+                None => literal.span.clone(),
+            },
+            PrimaryLeft::NumericLiteral { literal } | PrimaryLeft::StringLiteral { literal } => {
+                literal.span.clone()
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
