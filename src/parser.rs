@@ -159,7 +159,7 @@ fn parse_assignment<'input>(
 ) -> Option<Assignment<'input>> {
     let anchor = lexer.cast_anchor();
 
-    let Some(left) = parse_expression(lexer, errors) else {
+    let Some(left) = parse_primary(lexer, errors) else {
         return None;
     };
 
@@ -545,8 +545,8 @@ fn parse_equals_or_not_equals_expression<'input>(
         return None;
     };
 
-    let mut chain = Vec::new();
-    loop {
+    let mut chain = None;
+    for _ in 0..1 {
         let op = match lexer.current().get_kind() {
             TokenKind::DoubleEqual => {
                 Spanned::new(EqualsOrNotEqusls::Equals, lexer.next().unwrap().span)
@@ -560,7 +560,7 @@ fn parse_equals_or_not_equals_expression<'input>(
         let Some(right) = parse_less_or_greater_expression(lexer, errors) else {
             break;
         };
-        chain.push((op, right));
+        chain = Some((op, right));
     }
 
     Some(EqualsOrNotEqualsExpression {
@@ -580,8 +580,8 @@ fn parse_less_or_greater_expression<'input>(
         return None;
     };
 
-    let mut chain = Vec::new();
-    loop {
+    let mut chain = None;
+    for _ in 0..1 {
         let op = match lexer.current().get_kind() {
             TokenKind::LessThan => {
                 Spanned::new(LessOrGreaterThan::LessThan, lexer.next().unwrap().span)
@@ -603,7 +603,7 @@ fn parse_less_or_greater_expression<'input>(
         let Some(right) = parse_add_or_sub_expression(lexer, errors) else {
             break;
         };
-        chain.push((op, right));
+        chain = Some((op, right));
     }
 
     Some(LessOrGreaterExpression {

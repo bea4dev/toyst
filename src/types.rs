@@ -372,6 +372,23 @@ pub fn infer_type_for_program(
     // 名前解決で先に処理しているので、こちらも先に型を解決しておく
     for statement in ast.statements.iter() {
         match statement {
+            Statement::ClassDefine(class_define) => {
+                if let Some(name) = &class_define.name {
+                    let ty = Type::Class {
+                        entity_id: EntityID::from(name),
+                        name: name.value.to_string(),
+                        fields: Arc::new(Mutex::new(Vec::new())),
+                        span: class_define.span.clone(),
+                    };
+                    env.define_entity_type(EntityID::from(name), ty);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for statement in ast.statements.iter() {
+        match statement {
             Statement::FunctionDefine(function_define) => {
                 let mut arguments = Vec::new();
                 for argument in function_define.arguments.iter() {
@@ -390,17 +407,6 @@ pub fn infer_type_for_program(
                 };
 
                 if let Some(name) = &function_define.name {
-                    env.define_entity_type(EntityID::from(name), ty);
-                }
-            }
-            Statement::ClassDefine(class_define) => {
-                if let Some(name) = &class_define.name {
-                    let ty = Type::Class {
-                        entity_id: EntityID::from(name),
-                        name: name.value.to_string(),
-                        fields: Arc::new(Mutex::new(Vec::new())),
-                        span: class_define.span.clone(),
-                    };
                     env.define_entity_type(EntityID::from(name), ty);
                 }
             }
@@ -428,13 +434,16 @@ pub fn infer_type_for_program(
                 }
             }
             Statement::Assignment(assignment) => {
-                infer_type_for_expression(&assignment.left, resolved_map, return_type, env, errors);
+                infer_type_for_primary(&assignment.left, resolved_map, return_type, env, errors);
 
                 if let Some(right) = &assignment.right {
                     infer_type_for_expression(right, resolved_map, return_type, env, errors);
 
                     env.unify(
-                        Spanned::new(EntityID::from(&assignment.left), assignment.left.span()),
+                        Spanned::new(
+                            EntityID::from(&assignment.left),
+                            assignment.left.span.clone(),
+                        ),
                         Spanned::new(EntityID::from(right), right.span()),
                         errors,
                     );
@@ -685,8 +694,8 @@ fn infer_type_for_eq_expression(
     env: &mut TypeEnvironment,
     errors: &mut Vec<TypeError>,
 ) {
-    match ast.chain.len() {
-        0 => {
+    match &ast.chain {
+        None => {
             infer_type_for_less_expression(&ast.first, resolved_map, return_type, env, errors);
 
             env.unify(
@@ -695,20 +704,16 @@ fn infer_type_for_eq_expression(
                 errors,
             );
         }
-        _ => {
+        Some((_, chain)) => {
             infer_type_for_less_expression(&ast.first, resolved_map, return_type, env, errors);
 
-            let mut last_entity_id =
-                Spanned::new(EntityID::from(&ast.first), ast.first.span.clone());
-            for (_, chain) in ast.chain.iter() {
-                let chain_entity_id = Spanned::new(EntityID::from(chain), chain.span.clone());
+            let last_entity_id = Spanned::new(EntityID::from(&ast.first), ast.first.span.clone());
 
-                env.unify(last_entity_id.clone(), chain_entity_id.clone(), errors);
+            let chain_entity_id = Spanned::new(EntityID::from(chain), chain.span.clone());
 
-                infer_type_for_less_expression(chain, resolved_map, return_type, env, errors);
+            env.unify(last_entity_id.clone(), chain_entity_id.clone(), errors);
 
-                last_entity_id = chain_entity_id;
-            }
+            infer_type_for_less_expression(chain, resolved_map, return_type, env, errors);
 
             env.give_type(
                 Spanned::new(EntityID::from(ast), ast.span.clone()),
@@ -726,8 +731,8 @@ fn infer_type_for_less_expression(
     env: &mut TypeEnvironment,
     errors: &mut Vec<TypeError>,
 ) {
-    match ast.chain.len() {
-        0 => {
+    match &ast.chain {
+        None => {
             infer_type_for_add_sub_expression(&ast.first, resolved_map, return_type, env, errors);
 
             env.unify(
@@ -736,7 +741,7 @@ fn infer_type_for_less_expression(
                 errors,
             );
         }
-        _ => {
+        Some((_, chain)) => {
             infer_type_for_add_sub_expression(&ast.first, resolved_map, return_type, env, errors);
 
             env.validate_numeric_type(
@@ -745,17 +750,12 @@ fn infer_type_for_less_expression(
                 errors,
             );
 
-            let mut last_entity_id =
-                Spanned::new(EntityID::from(&ast.first), ast.first.span.clone());
-            for (_, chain) in ast.chain.iter() {
-                let chain_entity_id = Spanned::new(EntityID::from(chain), chain.span.clone());
+            let last_entity_id = Spanned::new(EntityID::from(&ast.first), ast.first.span.clone());
+            let chain_entity_id = Spanned::new(EntityID::from(chain), chain.span.clone());
 
-                env.unify(last_entity_id.clone(), chain_entity_id.clone(), errors);
+            env.unify(last_entity_id.clone(), chain_entity_id.clone(), errors);
 
-                infer_type_for_add_sub_expression(chain, resolved_map, return_type, env, errors);
-
-                last_entity_id = chain_entity_id;
-            }
+            infer_type_for_add_sub_expression(chain, resolved_map, return_type, env, errors);
 
             env.give_type(
                 Spanned::new(EntityID::from(ast), ast.span.clone()),

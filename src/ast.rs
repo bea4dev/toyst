@@ -48,7 +48,7 @@ pub struct LetStatement<'input> {
 
 #[derive(Debug)]
 pub struct Assignment<'input> {
-    pub left: Expression<'input>,
+    pub left: Primary<'input>,
     pub right: Option<Expression<'input>>,
     pub span: Range<usize>,
 }
@@ -156,7 +156,7 @@ pub struct AndExpression<'input> {
 #[derive(Debug)]
 pub struct EqualsOrNotEqualsExpression<'input> {
     pub first: LessOrGreaterExpression<'input>,
-    pub chain: Vec<(Spanned<EqualsOrNotEqusls>, LessOrGreaterExpression<'input>)>,
+    pub chain: Option<(Spanned<EqualsOrNotEqusls>, LessOrGreaterExpression<'input>)>,
     pub span: Range<usize>,
 }
 
@@ -169,7 +169,7 @@ pub enum EqualsOrNotEqusls {
 #[derive(Debug)]
 pub struct LessOrGreaterExpression<'input> {
     pub first: AddOrSubExpression<'input>,
-    pub chain: Vec<(Spanned<LessOrGreaterThan>, AddOrSubExpression<'input>)>,
+    pub chain: Option<(Spanned<LessOrGreaterThan>, AddOrSubExpression<'input>)>,
     pub span: Range<usize>,
 }
 

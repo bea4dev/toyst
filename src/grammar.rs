@@ -11,7 +11,7 @@ bnf_rules! {
 
     let_statement       ::= "let" literal [ "=" expression ]
 
-    assignment          ::= expression "=" expression
+    assignment          ::= primary "=" expression
 
     function_define     ::= "function" literal "(" [ function_argument ] { "," function_argument } ")" [ "->" type_info ] block
     function_argument   ::= literal ":" type_info

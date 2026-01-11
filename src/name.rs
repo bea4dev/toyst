@@ -82,19 +82,6 @@ pub fn resolve_name_for_program<'input>(
     // function test() {}
     for statement in ast.statements.iter() {
         match statement {
-            Statement::FunctionDefine(function_define) => {
-                if let Some(name) = &function_define.name {
-                    container.define(
-                        resolver,
-                        name.value,
-                        Define {
-                            kind: DefineKind::Function,
-                            entity_id: EntityID::from(function_define),
-                            span: name.span.clone(),
-                        },
-                    );
-                }
-            }
             Statement::ClassDefine(class_define) => {
                 if let Some(name) = &class_define.name {
                     container.define(
@@ -103,6 +90,25 @@ pub fn resolve_name_for_program<'input>(
                         Define {
                             kind: DefineKind::UserType,
                             entity_id: EntityID::from(class_define),
+                            span: name.span.clone(),
+                        },
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for statement in ast.statements.iter() {
+        match statement {
+            Statement::FunctionDefine(function_define) => {
+                if let Some(name) = &function_define.name {
+                    container.define(
+                        resolver,
+                        name.value,
+                        Define {
+                            kind: DefineKind::Function,
+                            entity_id: EntityID::from(function_define),
                             span: name.span.clone(),
                         },
                     );
@@ -128,7 +134,7 @@ pub fn resolve_name_for_program<'input>(
                 }
             }
             Statement::Assignment(assignment) => {
-                resolve_name_for_expression(
+                resolve_name_for_primary(
                     &assignment.left,
                     errors,
                     resolver,

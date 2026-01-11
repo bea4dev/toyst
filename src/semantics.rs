@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Assignment, ElseOrElseIf, Expression, PrimaryLeft, Program, Statement},
+    ast::{Assignment, ElseOrElseIf, Primary, PrimaryLeft, Program, Statement},
     error::{SemanticsError, SemanticsErrorKind},
 };
 
@@ -43,69 +43,22 @@ fn validate_semantics_for_assignment(ast: &Assignment, errors: &mut Vec<Semantic
     if !is_validate_as_assign_left(&ast.left) {
         let error = SemanticsError {
             kind: SemanticsErrorKind::InvalidAssignLeft,
-            span: ast.left.span(),
+            span: ast.left.span.clone(),
         };
         errors.push(error);
     }
 
-    fn is_validate_as_assign_left(ast: &Expression) -> bool {
-        let Expression::OrExpression(or_expression) = ast else {
-            return false;
-        };
-
-        if !or_expression.chain.is_empty() {
-            return false;
-        }
-
-        let and_expression = &or_expression.first;
-
-        if !and_expression.chain.is_empty() {
-            return false;
-        }
-
-        let equals_expression = &and_expression.first;
-
-        if !equals_expression.chain.is_empty() {
-            return false;
-        }
-
-        let less_expression = &equals_expression.first;
-
-        if !less_expression.chain.is_empty() {
-            return false;
-        }
-
-        let add_expression = &less_expression.first;
-
-        if !add_expression.chain.is_empty() {
-            return false;
-        }
-
-        let mul_expression = &add_expression.first;
-
-        if !mul_expression.chain.is_empty() {
-            return false;
-        }
-
-        let factor = &mul_expression.first;
-
-        if factor.minus.is_some() {
-            return false;
-        }
-
-        match &factor.primary {
-            Some(primary) => match primary.chain.len() {
-                0 => match &primary.first {
-                    PrimaryLeft::Literal {
-                        literal: _,
-                        function_call,
-                    } => function_call.is_none(),
-                    PrimaryLeft::NumericLiteral { literal: _ } => false,
-                    PrimaryLeft::StringLiteral { literal: _ } => false,
-                },
-                _ => true,
+    fn is_validate_as_assign_left(ast: &Primary) -> bool {
+        match ast.chain.len() {
+            0 => match &ast.first {
+                PrimaryLeft::Literal {
+                    literal: _,
+                    function_call,
+                } => function_call.is_none(),
+                PrimaryLeft::NumericLiteral { literal: _ } => false,
+                PrimaryLeft::StringLiteral { literal: _ } => false,
             },
-            None => false,
+            _ => true,
         }
     }
 }
