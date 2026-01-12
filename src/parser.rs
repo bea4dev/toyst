@@ -164,6 +164,7 @@ fn parse_assignment<'input>(
     };
 
     if lexer.current().get_kind() != TokenKind::Equal {
+        lexer.back_to_anchor(anchor);
         return None;
     }
     lexer.next();

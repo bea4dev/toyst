@@ -1,0 +1,11 @@
+class TestClass {
+    field: int
+}
+
+function main() {
+    let object = new TestClass {
+        field: 100
+    };
+    print("Hello, world!");
+    return;
+}

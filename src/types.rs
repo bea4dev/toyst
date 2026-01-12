@@ -906,15 +906,11 @@ fn infer_type_for_primary(
                         env.define_entity_type(EntityID::from(literal), Type::Unknown);
                     }
                     DefineKind::Function => {
-                        let error = TypeError {
-                            kind: TypeErrorKind::InvalidVariableByFunction {
-                                function: define.span.clone(),
-                            },
-                            span: literal.span.clone(),
-                        };
-                        errors.push(error);
-
-                        env.define_entity_type(EntityID::from(literal), Type::Unknown);
+                        env.unify(
+                            Spanned::new(define.entity_id, define.span.clone()),
+                            Spanned::new(EntityID::from(literal), literal.span.clone()),
+                            errors,
+                        );
                     }
                     DefineKind::Variable => {
                         env.unify(
@@ -924,9 +920,25 @@ fn infer_type_for_primary(
                         );
                     }
                 },
-                None => {
-                    env.define_entity_type(EntityID::from(literal), Type::Unknown);
-                }
+                None => match literal.value {
+                    "print" => env.define_entity_type(
+                        EntityID::from(literal),
+                        Type::Function {
+                            arguments: vec![Type::String],
+                            return_type: Box::new(Type::Void),
+                            span: literal.span.clone(),
+                        },
+                    ),
+                    "print_int" => env.define_entity_type(
+                        EntityID::from(literal),
+                        Type::Function {
+                            arguments: vec![Type::Int],
+                            return_type: Box::new(Type::Void),
+                            span: literal.span.clone(),
+                        },
+                    ),
+                    _ => env.define_entity_type(EntityID::from(literal), Type::Unknown),
+                },
             }
 
             match function_call {
@@ -1269,7 +1281,11 @@ fn get_type(
                 Type::Unknown
             }
         },
-        None => Type::Unknown,
+        None => match ast.name.value {
+            "int" => Type::Int,
+            "float" => Type::Float,
+            _ => Type::Unknown,
+        },
     }
 }
 

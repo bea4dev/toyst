@@ -89,7 +89,7 @@ pub fn resolve_name_for_program<'input>(
                         name.value,
                         Define {
                             kind: DefineKind::UserType,
-                            entity_id: EntityID::from(class_define),
+                            entity_id: EntityID::from(name),
                             span: name.span.clone(),
                         },
                     );
@@ -108,7 +108,7 @@ pub fn resolve_name_for_program<'input>(
                         name.value,
                         Define {
                             kind: DefineKind::Function,
-                            entity_id: EntityID::from(function_define),
+                            entity_id: EntityID::from(name),
                             span: name.span.clone(),
                         },
                     );
@@ -130,6 +130,15 @@ pub fn resolve_name_for_program<'input>(
                             entity_id: EntityID::from(name),
                             span: name.span.clone(),
                         },
+                    );
+                }
+                if let Some(expression) = &let_statement.expression {
+                    resolve_name_for_expression(
+                        expression,
+                        errors,
+                        resolver,
+                        container,
+                        resolved_map,
                     );
                 }
             }
@@ -378,16 +387,18 @@ fn resolve_name_for_primary<'input>(
         function_call,
     } = &ast.first
     {
-        match container.resolve(resolver, literal.value) {
-            Some(define) => {
-                resolved_map.insert(EntityID::from(literal), define.clone());
-            }
-            None => {
-                let error = NameResolveError {
-                    kind: NameResolveErrorKind::UnknownName,
-                    span: literal.span.clone(),
-                };
-                errors.push(error);
+        if literal.value != "print" && literal.value != "print_int" {
+            match container.resolve(resolver, literal.value) {
+                Some(define) => {
+                    resolved_map.insert(EntityID::from(literal), define.clone());
+                }
+                None => {
+                    let error = NameResolveError {
+                        kind: NameResolveErrorKind::UnknownName,
+                        span: literal.span.clone(),
+                    };
+                    errors.push(error);
+                }
             }
         }
 
@@ -456,11 +467,13 @@ fn resolve_name_for_type_info<'input>(
             resolved_map.insert(EntityID::from(&ast.name), define.clone());
         }
         None => {
-            let error = NameResolveError {
-                kind: NameResolveErrorKind::UnknownName,
-                span: ast.name.span.clone(),
-            };
-            errors.push(error);
+            if ast.name.value != "int" && ast.name.value != "float" {
+                let error = NameResolveError {
+                    kind: NameResolveErrorKind::UnknownName,
+                    span: ast.name.span.clone(),
+                };
+                errors.push(error);
+            }
         }
     }
 }

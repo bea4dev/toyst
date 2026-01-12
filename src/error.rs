@@ -80,9 +80,6 @@ pub enum TypeErrorKind {
     InvalidVariableByUserType {
         user_type: Range<usize>,
     },
-    InvalidVariableByFunction {
-        function: Range<usize>,
-    },
     NotFunctionType {
         found: Spanned<Type>,
     },

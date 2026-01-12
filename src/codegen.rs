@@ -43,17 +43,6 @@ fn into_llvm_value_type<'ctx>(context: &'ctx Context, ty: &Type) -> Option<Basic
     }
 }
 
-fn deref_value<'ctx>(
-    value: BasicValueEnum<'ctx>,
-    builder: &Builder<'ctx>,
-    ty: BasicTypeEnum<'ctx>,
-) -> BasicValueEnum<'ctx> {
-    match <BasicValueEnum<'_> as TryInto<PointerValue<'_>>>::try_into(value) {
-        Ok(ptr) => builder.build_load(ty, ptr, "load").unwrap(),
-        Err(_) => value,
-    }
-}
-
 pub fn codegen_for_program<'ctx>(
     ast: &Program,
     context: &'ctx Context,
@@ -164,6 +153,8 @@ pub fn codegen_for_program<'ctx>(
             Statement::LetStatement(let_statement) => {
                 let name = let_statement.name.as_ref().unwrap();
                 let ty = type_map.get(&EntityID::from(name)).unwrap();
+                dbg!(ty);
+                dbg!(name.value);
                 let ty = into_llvm_value_type(context, ty).unwrap();
                 let ptr = builder.build_alloca(ty, name.value).unwrap();
 
@@ -183,14 +174,13 @@ pub fn codegen_for_program<'ctx>(
                         class_map,
                     );
 
-                    let value = deref_value(value, builder, ty);
-
                     builder.build_store(ptr, value).unwrap();
                 }
             }
             Statement::Assignment(assignment) => {
                 let ptr = codegen_for_primary(
                     &assignment.left,
+                    false,
                     context,
                     builder,
                     module,
@@ -216,12 +206,6 @@ pub fn codegen_for_program<'ctx>(
                     function_map,
                     class_map,
                 );
-
-                let ty =
-                    into_llvm_value_type(context, type_map.get(&EntityID::from(right)).unwrap())
-                        .unwrap();
-
-                let value = deref_value(value, builder, ty);
 
                 builder
                     .build_store(ptr.into_pointer_value(), value)
@@ -281,9 +265,6 @@ pub fn codegen_for_program<'ctx>(
                     function_map,
                     class_map,
                 );
-
-                let first_condition =
-                    deref_value(first_condition, builder, context.bool_type().into());
 
                 let then_block = context.append_basic_block(function_value.unwrap(), "then");
                 let mut else_block = context.append_basic_block(function_value.unwrap(), "else");
@@ -492,17 +473,6 @@ fn codegen_for_new_expression<'ctx>(
             function_map,
             class_map,
         );
-        let value = deref_value(
-            value,
-            builder,
-            into_llvm_value_type(
-                context,
-                type_map
-                    .get(&EntityID::from(&field_assign.expression))
-                    .unwrap(),
-            )
-            .unwrap(),
-        );
 
         let ptr = builder
             .build_struct_gep(
@@ -548,15 +518,6 @@ fn codegen_for_return_expression<'ctx>(
                 function_map,
                 class_map,
             );
-            let value = deref_value(
-                value,
-                builder,
-                into_llvm_value_type(
-                    context,
-                    type_map.get(&EntityID::from(expression.as_ref())).unwrap(),
-                )
-                .unwrap(),
-            );
 
             builder.build_return(Some(&value)).unwrap();
         }
@@ -596,7 +557,7 @@ fn codegen_for_or_expression<'ctx>(
     match ast.chain.len() {
         0 => first,
         _ => {
-            let mut value = deref_value(first, builder, context.bool_type().into());
+            let mut value = first;
 
             for (_, chain) in ast.chain.iter() {
                 let chain_value = codegen_for_and_expression(
@@ -611,8 +572,6 @@ fn codegen_for_or_expression<'ctx>(
                     function_map,
                     class_map,
                 );
-
-                let chain_value = deref_value(chain_value, builder, context.bool_type().into());
 
                 value = builder
                     .build_or(value.into_int_value(), chain_value.into_int_value(), "or")
@@ -653,7 +612,7 @@ fn codegen_for_and_expression<'ctx>(
     match ast.chain.len() {
         0 => first,
         _ => {
-            let mut value = deref_value(first, builder, context.bool_type().into());
+            let mut value = first;
 
             for (_, chain) in ast.chain.iter() {
                 let chain_value = codegen_for_equals_expression(
@@ -668,8 +627,6 @@ fn codegen_for_and_expression<'ctx>(
                     function_map,
                     class_map,
                 );
-
-                let chain_value = deref_value(chain_value, builder, context.bool_type().into());
 
                 value = builder
                     .build_and(value.into_int_value(), chain_value.into_int_value(), "or")
@@ -708,12 +665,6 @@ fn codegen_for_equals_expression<'ctx>(
                 function_map,
                 class_map,
             );
-            let value = deref_value(
-                value,
-                builder,
-                into_llvm_value_type(context, type_map.get(&EntityID::from(&ast.first)).unwrap())
-                    .unwrap(),
-            );
 
             let chain_value = codegen_for_less_expression(
                 &chain,
@@ -726,12 +677,6 @@ fn codegen_for_equals_expression<'ctx>(
                 variable_map,
                 function_map,
                 class_map,
-            );
-            let chain_value = deref_value(
-                chain_value,
-                builder,
-                into_llvm_value_type(context, type_map.get(&EntityID::from(&ast.first)).unwrap())
-                    .unwrap(),
             );
 
             match type_map.get(&EntityID::from(&ast.first)).unwrap() {
@@ -816,12 +761,6 @@ fn codegen_for_less_expression<'ctx>(
                 function_map,
                 class_map,
             );
-            let value = deref_value(
-                value,
-                builder,
-                into_llvm_value_type(context, type_map.get(&EntityID::from(&ast.first)).unwrap())
-                    .unwrap(),
-            );
 
             let chain_value = codegen_for_add_expression(
                 &chain,
@@ -834,12 +773,6 @@ fn codegen_for_less_expression<'ctx>(
                 variable_map,
                 function_map,
                 class_map,
-            );
-            let chain_value = deref_value(
-                chain_value,
-                builder,
-                into_llvm_value_type(context, type_map.get(&EntityID::from(&ast.first)).unwrap())
-                    .unwrap(),
             );
 
             match type_map.get(&EntityID::from(&ast.first)).unwrap() {
@@ -930,7 +863,7 @@ fn codegen_for_add_expression<'ctx>(
     match ast.chain.len() {
         0 => first,
         _ => {
-            let mut value = deref_value(first, builder, context.bool_type().into());
+            let mut value = first;
 
             for (op, chain) in ast.chain.iter() {
                 let chain_value = codegen_for_mul_expression(
@@ -945,8 +878,6 @@ fn codegen_for_add_expression<'ctx>(
                     function_map,
                     class_map,
                 );
-
-                let chain_value = deref_value(chain_value, builder, context.bool_type().into());
 
                 value = match type_map.get(&EntityID::from(&ast.first)).unwrap() {
                     Type::Int | Type::Bool => match op.value {
@@ -1029,7 +960,7 @@ fn codegen_for_mul_expression<'ctx>(
     match ast.chain.len() {
         0 => first,
         _ => {
-            let mut value = deref_value(first, builder, context.bool_type().into());
+            let mut value = first;
 
             for (op, chain) in ast.chain.iter() {
                 let chain_value = codegen_for_factor(
@@ -1044,8 +975,6 @@ fn codegen_for_mul_expression<'ctx>(
                     function_map,
                     class_map,
                 );
-
-                let chain_value = deref_value(chain_value, builder, context.bool_type().into());
 
                 value = match type_map.get(&EntityID::from(&ast.first)).unwrap() {
                     Type::Int | Type::Bool => match op.value {
@@ -1116,6 +1045,7 @@ fn codegen_for_factor<'ctx>(
 
     let value = codegen_for_primary(
         primary,
+        true,
         context,
         builder,
         module,
@@ -1128,32 +1058,24 @@ fn codegen_for_factor<'ctx>(
     );
 
     match &ast.minus {
-        Some(_) => {
-            let value = deref_value(
-                value,
-                builder,
-                into_llvm_value_type(context, type_map.get(&EntityID::from(primary)).unwrap())
-                    .unwrap(),
-            );
-
-            match type_map.get(&EntityID::from(primary)).unwrap() {
-                Type::Int | Type::Bool => builder
-                    .build_int_neg(value.into_int_value(), "neg")
-                    .unwrap()
-                    .into(),
-                Type::Float => builder
-                    .build_float_neg(value.into_float_value(), "neg")
-                    .unwrap()
-                    .into(),
-                _ => unreachable!(),
-            }
-        }
+        Some(_) => match type_map.get(&EntityID::from(primary)).unwrap() {
+            Type::Int | Type::Bool => builder
+                .build_int_neg(value.into_int_value(), "neg")
+                .unwrap()
+                .into(),
+            Type::Float => builder
+                .build_float_neg(value.into_float_value(), "neg")
+                .unwrap()
+                .into(),
+            _ => unreachable!(),
+        },
         None => value,
     }
 }
 
 fn codegen_for_primary<'ctx>(
     ast: &Primary,
+    load: bool,
     context: &'ctx Context,
     builder: &Builder<'ctx>,
     module: &Module<'ctx>,
@@ -1164,53 +1086,72 @@ fn codegen_for_primary<'ctx>(
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
+    fn deref_value<'ctx>(
+        value: BasicValueEnum<'ctx>,
+        builder: &Builder<'ctx>,
+        ty: BasicTypeEnum<'ctx>,
+    ) -> BasicValueEnum<'ctx> {
+        match <BasicValueEnum<'_> as TryInto<PointerValue<'_>>>::try_into(value) {
+            Ok(ptr) => builder.build_load(ty, ptr, "load").unwrap(),
+            Err(_) => value,
+        }
+    }
+
     let mut value = match &ast.first {
         PrimaryLeft::Literal {
             literal,
             function_call,
-        } => {
-            let resolved = resolved_map.get(&EntityID::from(literal)).unwrap();
+        } => match function_call {
+            Some(function_call) => {
+                let function = match literal.value {
+                    "print" => module.get_function("print").unwrap(),
+                    "print_int" => module.get_function("print_int").unwrap(),
+                    _ => {
+                        let resolved = resolved_map.get(&EntityID::from(literal)).unwrap();
+                        function_map.get(&resolved.entity_id).unwrap().clone()
+                    }
+                };
 
-            match function_call {
-                Some(function_call) => {
-                    let result = builder
-                        .build_direct_call(
-                            function_map.get(&resolved.entity_id).unwrap().clone(),
-                            function_call
-                                .arguments
-                                .iter()
-                                .map(|argument| {
-                                    codegen_for_expression(
-                                        argument,
-                                        context,
-                                        builder,
-                                        module,
-                                        resolved_map,
-                                        type_map,
-                                        function_value,
-                                        variable_map,
-                                        function_map,
-                                        class_map,
-                                    )
-                                    .into()
-                                })
-                                .collect::<Vec<_>>()
-                                .as_slice(),
-                            "call",
-                        )
-                        .unwrap();
+                let result = builder
+                    .build_direct_call(
+                        function,
+                        function_call
+                            .arguments
+                            .iter()
+                            .map(|argument| {
+                                codegen_for_expression(
+                                    argument,
+                                    context,
+                                    builder,
+                                    module,
+                                    resolved_map,
+                                    type_map,
+                                    function_value,
+                                    variable_map,
+                                    function_map,
+                                    class_map,
+                                )
+                                .into()
+                            })
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                        "call",
+                    )
+                    .unwrap();
 
-                    result
-                        .try_as_basic_value()
-                        .basic()
-                        .unwrap_or(context.i8_type().const_zero().as_basic_value_enum())
-                }
-                None => variable_map
+                result
+                    .try_as_basic_value()
+                    .basic()
+                    .unwrap_or(context.i8_type().const_zero().as_basic_value_enum())
+            }
+            None => {
+                let resolved = resolved_map.get(&EntityID::from(literal)).unwrap();
+                variable_map
                     .get(&resolved.entity_id)
                     .unwrap()
-                    .as_basic_value_enum(),
+                    .as_basic_value_enum()
             }
-        }
+        },
         PrimaryLeft::NumericLiteral { literal } => match literal.value.contains(".") {
             true => context
                 .f64_type()
@@ -1255,14 +1196,14 @@ fn codegen_for_primary<'ctx>(
 
         let is_last = index == ast.chain.len() - 1;
 
-        value = match is_last {
-            true => deref_value(
+        value = match is_last || load {
+            true => field_ptr.as_basic_value_enum(),
+            false => deref_value(
                 field_ptr.as_basic_value_enum(),
                 builder,
                 into_llvm_value_type(context, type_map.get(&EntityID::from(chain)).unwrap())
                     .unwrap(),
             ),
-            false => field_ptr.as_basic_value_enum(),
         };
         last_entity_id = EntityID::from(chain);
     }
@@ -1272,9 +1213,12 @@ fn codegen_for_primary<'ctx>(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        ffi::{self},
+    };
 
-    use inkwell::{OptimizationLevel, context::Context};
+    use inkwell::{AddressSpace, OptimizationLevel, context::Context};
 
     use crate::{
         ast::Spanned,
@@ -1327,20 +1271,21 @@ mod test {
 
     #[test]
     fn codegen() {
-        let source = "
+        let source = r#"
 function main() {
-    let a;
-    let b;
-    a = b;
-    b = 100;
+    print("Hello, world!");
     return;
 }
-        ";
+        "#;
 
         let mut lexer = Lexer::new(source);
         let mut errors = Vec::new();
 
         let ast = parse_program(&mut lexer, &mut errors, &[]);
+
+        for token in Lexer::new(source) {
+            dbg!(token.kind);
+        }
 
         dbg!(&ast);
         dbg!(errors);
@@ -1376,6 +1321,21 @@ function main() {
         let builder = context.create_builder();
         let module = context.create_module("module");
 
+        let print_str_function = module.add_function(
+            "print",
+            context
+                .void_type()
+                .fn_type(&[context.ptr_type(AddressSpace::default()).into()], false),
+            None,
+        );
+        let print_int_function = module.add_function(
+            "print_int",
+            context
+                .void_type()
+                .fn_type(&[context.i64_type().into()], false),
+            None,
+        );
+
         codegen_for_program(
             &ast,
             &context,
@@ -1389,11 +1349,22 @@ function main() {
             &mut HashMap::new(),
         );
 
+        unsafe extern "C" fn print_str(char: *const i8) {
+            println!("{}", unsafe { ffi::CStr::from_ptr(char).to_str().unwrap() });
+        }
+
+        unsafe extern "C" fn print_int(int: i64) {
+            println!("{}", int);
+        }
+
         println!("{}", module.to_string());
 
         let jit_engine = module
             .create_jit_execution_engine(OptimizationLevel::None)
             .unwrap();
+
+        jit_engine.add_global_mapping(&print_str_function, print_str as usize);
+        jit_engine.add_global_mapping(&print_int_function, print_int as usize);
 
         let main = unsafe {
             jit_engine
