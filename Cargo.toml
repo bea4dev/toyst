@@ -6,11 +6,17 @@ edition = "2024"
 
 [dependencies]
 ariadne = "0.6.0"
+async-trait = "0.1.89"
 bnf_rules = "0.1.7"
 extension-fn = "1.2.0"
 inkwell = { version = "0.8.0", features = [ "llvm21-1" ] }
 regex = "1.12.2"
+tokio = { version = "1.49.0", features = [ "full" ] }
+tower-lsp = "0.20.0"
 typeid = "1.0.3"
+futures = "0.3.31"
+futures-util = "0.3.31"
+manual_future = "0.1.3"
 
 [[bin]]
 name = "toyst"

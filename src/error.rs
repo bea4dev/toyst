@@ -26,6 +26,7 @@ pub enum ParseErrorKind {
     UnclosedParen,
     MissingNewName,
     MissingNewFieldAssign,
+    InvalidIfStatement,
 }
 
 #[derive(Debug)]

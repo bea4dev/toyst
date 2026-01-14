@@ -92,20 +92,20 @@ pub struct IfStatement<'input> {
 
 #[derive(Debug)]
 pub struct IfBranch<'input> {
-    pub condition: Expression<'input>,
-    pub block: Block<'input>,
+    pub condition: Option<Expression<'input>>,
+    pub block: Option<Block<'input>>,
     pub span: Range<usize>,
 }
 
 #[derive(Debug)]
 pub enum ElseOrElseIf<'input> {
     Else {
-        block: Block<'input>,
+        block: Option<Block<'input>>,
         span: Range<usize>,
     },
     ElseIf {
-        condition: Expression<'input>,
-        block: Block<'input>,
+        condition: Option<Expression<'input>>,
+        block: Option<Block<'input>>,
         span: Range<usize>,
     },
 }

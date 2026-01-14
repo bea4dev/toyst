@@ -1,11 +1,17 @@
-class TestClass {
-    field: int
+function factorial(n: int) -> int {
+    let result;
+    if n == 0 {
+        result = 1;
+    } else if n == 1 {
+        result = 1;
+    } else {
+        result = n * factorial(n - 1);
+    }
+    return result;
 }
 
 function main() {
-    let object = new TestClass {
-        field: 100
-    };
-    print("Hello, world!");
+    print("10! = ");
+    print_int(factorial(10));
     return;
 }

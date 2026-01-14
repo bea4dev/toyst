@@ -8,3 +8,5 @@ pub mod parser;
 pub mod semantics;
 pub mod types;
 pub mod report;
+pub mod lsp;
+pub mod future;

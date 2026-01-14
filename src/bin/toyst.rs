@@ -123,7 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", int);
     }
 
-    println!("{}", module.to_string());
+    // println!("{}", module.to_string());
 
     let jit_engine = module
         .create_jit_execution_engine(OptimizationLevel::None)

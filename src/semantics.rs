@@ -18,19 +18,25 @@ pub fn validate_semantics_for_program(ast: &Program, errors: &mut Vec<SemanticsE
             }
             Statement::ClassDefine(_) => {}
             Statement::IfStatement(if_statement) => {
-                validate_semantics_for_program(&if_statement.first.block.program, errors);
+                if let Some(block) = &if_statement.first.block {
+                    validate_semantics_for_program(&block.program, errors);
+                }
 
                 for chain in if_statement.chain.iter() {
                     match chain {
                         ElseOrElseIf::Else { block, span: _ } => {
-                            validate_semantics_for_program(&block.program, errors);
+                            if let Some(block) = block {
+                                validate_semantics_for_program(&block.program, errors);
+                            }
                         }
                         ElseOrElseIf::ElseIf {
                             condition: _,
                             block,
                             span: _,
                         } => {
-                            validate_semantics_for_program(&block.program, errors);
+                            if let Some(block) = block {
+                                validate_semantics_for_program(&block.program, errors);
+                            }
                         }
                     }
                 }
@@ -72,7 +78,7 @@ mod test {
         let source = "
 let a = 100 + 200;
 b = a;
-b + a = a; // Error
+100 = a; // Error
         ";
 
         let mut lexer = Lexer::new(source);

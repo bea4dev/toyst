@@ -495,53 +495,63 @@ pub fn infer_type_for_program(
                 }
             }
             Statement::IfStatement(if_statement) => {
-                let condition = &if_statement.first.condition;
-                infer_type_for_expression(condition, resolved_map, return_type, env, errors);
-                env.give_type(
-                    Spanned::new(EntityID::from(condition), condition.span()),
-                    Spanned::new(Type::Bool, condition.span()),
-                    errors,
-                );
+                if let Some(condition) = &if_statement.first.condition {
+                    infer_type_for_expression(condition, resolved_map, return_type, env, errors);
 
-                let block = &if_statement.first.block;
-                infer_type_for_program(&block.program, resolved_map, return_type, env, errors);
+                    env.give_type(
+                        Spanned::new(EntityID::from(condition), condition.span()),
+                        Spanned::new(Type::Bool, condition.span()),
+                        errors,
+                    );
+                }
+
+                if let Some(block) = &if_statement.first.block {
+                    infer_type_for_program(&block.program, resolved_map, return_type, env, errors);
+                }
 
                 for chain in if_statement.chain.iter() {
                     match chain {
                         ElseOrElseIf::Else { block, span: _ } => {
-                            infer_type_for_program(
-                                &block.program,
-                                resolved_map,
-                                return_type,
-                                env,
-                                errors,
-                            );
+                            if let Some(block) = block {
+                                infer_type_for_program(
+                                    &block.program,
+                                    resolved_map,
+                                    return_type,
+                                    env,
+                                    errors,
+                                );
+                            }
                         }
                         ElseOrElseIf::ElseIf {
                             condition,
                             block,
                             span: _,
                         } => {
-                            infer_type_for_expression(
-                                condition,
-                                resolved_map,
-                                return_type,
-                                env,
-                                errors,
-                            );
-                            env.give_type(
-                                Spanned::new(EntityID::from(condition), condition.span()),
-                                Spanned::new(Type::Bool, condition.span()),
-                                errors,
-                            );
+                            if let Some(condition) = condition {
+                                infer_type_for_expression(
+                                    condition,
+                                    resolved_map,
+                                    return_type,
+                                    env,
+                                    errors,
+                                );
 
-                            infer_type_for_program(
-                                &block.program,
-                                resolved_map,
-                                return_type,
-                                env,
-                                errors,
-                            );
+                                env.give_type(
+                                    Spanned::new(EntityID::from(condition), condition.span()),
+                                    Spanned::new(Type::Bool, condition.span()),
+                                    errors,
+                                );
+                            }
+
+                            if let Some(block) = block {
+                                infer_type_for_program(
+                                    &block.program,
+                                    resolved_map,
+                                    return_type,
+                                    env,
+                                    errors,
+                                );
+                            }
                         }
                     }
                 }
@@ -803,6 +813,12 @@ fn infer_type_for_add_sub_expression(
 
                 last_entity_id = chain_entity_id;
             }
+
+            env.unify(
+                Spanned::new(EntityID::from(ast), ast.span.clone()),
+                last_entity_id,
+                errors,
+            );
         }
     }
 }
@@ -845,9 +861,9 @@ fn infer_type_for_mul_div_expression(
                 last_entity_id = chain_entity_id;
             }
 
-            env.give_type(
+            env.unify(
                 Spanned::new(EntityID::from(ast), ast.span.clone()),
-                Spanned::new(Type::Bool, ast.span.clone()),
+                last_entity_id,
                 errors,
             );
         }

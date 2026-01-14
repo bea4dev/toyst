@@ -166,7 +166,7 @@ pub fn resolve_name_for_program<'input>(
                         argument.name.value,
                         Define {
                             kind: DefineKind::Variable,
-                            entity_id: EntityID::from(argument),
+                            entity_id: EntityID::from(&argument.name),
                             span: argument.name.span.clone(),
                         },
                     );
@@ -215,36 +215,42 @@ pub fn resolve_name_for_program<'input>(
             Statement::IfStatement(if_statement) => {
                 let new_resolver = container.new_resolver(Some(resolver));
 
-                resolve_name_for_expression(
-                    &if_statement.first.condition,
-                    errors,
-                    new_resolver,
-                    container,
-                    resolved_map,
-                );
+                if let Some(condition) = &if_statement.first.condition {
+                    resolve_name_for_expression(
+                        condition,
+                        errors,
+                        new_resolver,
+                        container,
+                        resolved_map,
+                    );
+                }
 
                 let new_resolver = container.new_resolver(Some(resolver));
 
-                resolve_name_for_program(
-                    &if_statement.first.block.program,
-                    errors,
-                    new_resolver,
-                    container,
-                    resolved_map,
-                );
+                if let Some(block) = &if_statement.first.block {
+                    resolve_name_for_program(
+                        &block.program,
+                        errors,
+                        new_resolver,
+                        container,
+                        resolved_map,
+                    );
+                }
 
                 for chain in if_statement.chain.iter() {
                     match chain {
                         ElseOrElseIf::Else { block, span: _ } => {
                             let new_resolver = container.new_resolver(Some(resolver));
 
-                            resolve_name_for_program(
-                                &block.program,
-                                errors,
-                                new_resolver,
-                                container,
-                                resolved_map,
-                            );
+                            if let Some(block) = block {
+                                resolve_name_for_program(
+                                    &block.program,
+                                    errors,
+                                    new_resolver,
+                                    container,
+                                    resolved_map,
+                                );
+                            }
                         }
                         ElseOrElseIf::ElseIf {
                             condition,
@@ -253,23 +259,27 @@ pub fn resolve_name_for_program<'input>(
                         } => {
                             let new_resolver = container.new_resolver(Some(resolver));
 
-                            resolve_name_for_expression(
-                                condition,
-                                errors,
-                                new_resolver,
-                                container,
-                                resolved_map,
-                            );
+                            if let Some(condition) = condition {
+                                resolve_name_for_expression(
+                                    condition,
+                                    errors,
+                                    new_resolver,
+                                    container,
+                                    resolved_map,
+                                );
+                            }
 
                             let new_resolver = container.new_resolver(Some(resolver));
 
-                            resolve_name_for_program(
-                                &block.program,
-                                errors,
-                                new_resolver,
-                                container,
-                                resolved_map,
-                            );
+                            if let Some(block) = block {
+                                resolve_name_for_program(
+                                    &block.program,
+                                    errors,
+                                    new_resolver,
+                                    container,
+                                    resolved_map,
+                                );
+                            }
                         }
                     }
                 }

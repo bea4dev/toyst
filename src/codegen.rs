@@ -51,7 +51,7 @@ pub fn codegen_for_program<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) {
@@ -129,6 +129,16 @@ pub fn codegen_for_program<'ctx>(
                 let entry_block = context.append_basic_block(function, "entry");
                 builder.position_at_end(entry_block);
 
+                for (argument, value) in function_define
+                    .arguments
+                    .iter()
+                    .zip(function.get_params().into_iter())
+                {
+                    variable_map.insert(EntityID::from(&argument.name), value);
+                }
+
+                function_map.insert(EntityID::from(name), function);
+
                 codegen_for_program(
                     &function_define.block.as_ref().unwrap().program,
                     context,
@@ -136,13 +146,11 @@ pub fn codegen_for_program<'ctx>(
                     module,
                     resolved_map,
                     type_map,
-                    function_value,
+                    Some(function),
                     variable_map,
                     function_map,
                     class_map,
                 );
-
-                function_map.insert(EntityID::from(name), function);
             }
             _ => {}
         }
@@ -153,12 +161,10 @@ pub fn codegen_for_program<'ctx>(
             Statement::LetStatement(let_statement) => {
                 let name = let_statement.name.as_ref().unwrap();
                 let ty = type_map.get(&EntityID::from(name)).unwrap();
-                dbg!(ty);
-                dbg!(name.value);
                 let ty = into_llvm_value_type(context, ty).unwrap();
                 let ptr = builder.build_alloca(ty, name.value).unwrap();
 
-                variable_map.insert(EntityID::from(name), ptr);
+                variable_map.insert(EntityID::from(name), ptr.as_basic_value_enum());
 
                 if let Some(expression) = &let_statement.expression {
                     let value = codegen_for_expression(
@@ -254,7 +260,7 @@ pub fn codegen_for_program<'ctx>(
             }
             Statement::IfStatement(if_statement) => {
                 let first_condition = codegen_for_expression(
-                    &if_statement.first.condition,
+                    if_statement.first.condition.as_ref().unwrap(),
                     context,
                     builder,
                     module,
@@ -280,7 +286,7 @@ pub fn codegen_for_program<'ctx>(
 
                 builder.position_at_end(then_block);
                 codegen_for_program(
-                    &if_statement.first.block.program,
+                    &if_statement.first.block.as_ref().unwrap().program,
                     context,
                     builder,
                     module,
@@ -297,7 +303,7 @@ pub fn codegen_for_program<'ctx>(
                         ElseOrElseIf::Else { block, span: _ } => {
                             builder.position_at_end(else_block);
                             codegen_for_program(
-                                &block.program,
+                                &block.as_ref().unwrap().program,
                                 context,
                                 builder,
                                 module,
@@ -317,7 +323,7 @@ pub fn codegen_for_program<'ctx>(
                             builder.position_at_end(else_block);
 
                             let condition = codegen_for_expression(
-                                condition,
+                                condition.as_ref().unwrap(),
                                 context,
                                 builder,
                                 module,
@@ -344,7 +350,7 @@ pub fn codegen_for_program<'ctx>(
 
                             builder.position_at_end(then_block);
                             codegen_for_program(
-                                &block.program,
+                                &block.as_ref().unwrap().program,
                                 context,
                                 builder,
                                 module,
@@ -387,7 +393,7 @@ fn codegen_for_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -439,7 +445,7 @@ fn codegen_for_new_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -500,7 +506,7 @@ fn codegen_for_return_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -537,7 +543,7 @@ fn codegen_for_or_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -592,7 +598,7 @@ fn codegen_for_and_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -647,7 +653,7 @@ fn codegen_for_equals_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -743,7 +749,7 @@ fn codegen_for_less_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -843,7 +849,7 @@ fn codegen_for_add_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -940,7 +946,7 @@ fn codegen_for_mul_expression<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -1037,7 +1043,7 @@ fn codegen_for_factor<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -1082,7 +1088,7 @@ fn codegen_for_primary<'ctx>(
     resolved_map: &HashMap<EntityID, Define>,
     type_map: &HashMap<EntityID, Type>,
     function_value: Option<FunctionValue<'ctx>>,
-    variable_map: &mut HashMap<EntityID, PointerValue<'ctx>>,
+    variable_map: &mut HashMap<EntityID, BasicValueEnum<'ctx>>,
     function_map: &mut HashMap<EntityID, FunctionValue<'ctx>>,
     class_map: &mut HashMap<EntityID, StructType<'ctx>>,
 ) -> BasicValueEnum<'ctx> {
@@ -1146,10 +1152,26 @@ fn codegen_for_primary<'ctx>(
             }
             None => {
                 let resolved = resolved_map.get(&EntityID::from(literal)).unwrap();
-                variable_map
+                let value = variable_map
                     .get(&resolved.entity_id)
                     .unwrap()
-                    .as_basic_value_enum()
+                    .as_basic_value_enum();
+
+                match load {
+                    true => match function_value.unwrap().get_params().contains(&value) {
+                        true => value,
+                        false => deref_value(
+                            value,
+                            builder,
+                            into_llvm_value_type(
+                                context,
+                                type_map.get(&EntityID::from(literal)).unwrap(),
+                            )
+                            .unwrap(),
+                        ),
+                    },
+                    false => value,
+                }
             }
         },
         PrimaryLeft::NumericLiteral { literal } => match literal.value.contains(".") {
@@ -1163,7 +1185,7 @@ fn codegen_for_primary<'ctx>(
                 .as_basic_value_enum(),
         },
         PrimaryLeft::StringLiteral { literal } => builder
-            .build_global_string_ptr(literal.value, "string")
+            .build_global_string_ptr(&literal.value[1..(literal.value.len() - 1)], "string")
             .unwrap()
             .as_basic_value_enum(),
     };

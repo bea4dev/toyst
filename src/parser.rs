@@ -1,10 +1,11 @@
 use crate::{
     ast::{
         AddOrSub, AddOrSubExpression, AndExpression, Assignment, Block, ClassDefine, ClassField,
-        EqualsOrNotEqualsExpression, EqualsOrNotEqusls, Expression, Factor, FieldAssign,
-        FunctionArgument, FunctionCall, FunctionDefine, LessOrGreaterExpression, LessOrGreaterThan,
-        LetStatement, Literal, MulOrDiv, MulOrDivExpression, NewExpression, OrExpression, Primary,
-        PrimaryLeft, PrimaryRight, Program, ReturnExpression, Spanned, Statement, TypeInfo,
+        ElseOrElseIf, EqualsOrNotEqualsExpression, EqualsOrNotEqusls, Expression, Factor,
+        FieldAssign, FunctionArgument, FunctionCall, FunctionDefine, IfBranch, IfStatement,
+        LessOrGreaterExpression, LessOrGreaterThan, LetStatement, Literal, MulOrDiv,
+        MulOrDivExpression, NewExpression, OrExpression, Primary, PrimaryLeft, PrimaryRight,
+        Program, ReturnExpression, Spanned, Statement, TypeInfo,
     },
     error::{ParseError, ParseErrorKind},
     lexer::{GetKind, Lexer, TokenKind},
@@ -91,6 +92,9 @@ fn parse_statement<'input>(
     if let Some(class_define) = parse_class_define(lexer, errors) {
         return Some(Statement::ClassDefine(class_define));
     }
+    if let Some(if_statement) = parse_if_statement(lexer, errors) {
+        return Some(Statement::IfStatement(if_statement));
+    }
 
     None
 }
@@ -105,6 +109,100 @@ fn validate_smicolon<'input>(lexer: &mut Lexer<'input>, errors: &mut Vec<ParseEr
         };
         errors.push(error);
     }
+}
+
+fn parse_if_statement<'input>(
+    lexer: &mut Lexer<'input>,
+    errors: &mut Vec<ParseError>,
+) -> Option<IfStatement<'input>> {
+    let anchor = lexer.cast_anchor();
+
+    if lexer.current().get_kind() != TokenKind::If {
+        return None;
+    }
+    lexer.next();
+
+    let Some(condition) = parse_expression(lexer, errors) else {
+        recover_until(
+            lexer,
+            errors,
+            ParseErrorKind::InvalidIfStatement,
+            &[TokenKind::SemiColon],
+        );
+        return Some(IfStatement {
+            first: IfBranch {
+                condition: None,
+                block: None,
+                span: anchor.elapsed(lexer),
+            },
+            chain: Vec::new(),
+            span: anchor.elapsed(lexer),
+        });
+    };
+
+    let Some(block) = parse_block(lexer, errors) else {
+        recover_until(
+            lexer,
+            errors,
+            ParseErrorKind::InvalidIfStatement,
+            &[TokenKind::SemiColon],
+        );
+        return Some(IfStatement {
+            first: IfBranch {
+                condition: Some(condition),
+                block: None,
+                span: anchor.elapsed(lexer),
+            },
+            chain: Vec::new(),
+            span: anchor.elapsed(lexer),
+        });
+    };
+    let first_span = anchor.elapsed(lexer);
+
+    let mut chain = Vec::new();
+
+    loop {
+        let anchor = lexer.cast_anchor();
+
+        if lexer.current().get_kind() != TokenKind::Else {
+            break;
+        }
+        lexer.next();
+
+        if lexer.current().get_kind() == TokenKind::If {
+            let Some(condition) = parse_expression(lexer, errors) else {
+                break;
+            };
+            let Some(block) = parse_block(lexer, errors) else {
+                break;
+            };
+
+            chain.push(ElseOrElseIf::ElseIf {
+                condition: Some(condition),
+                block: Some(block),
+                span: anchor.elapsed(lexer),
+            });
+        } else {
+            let Some(block) = parse_block(lexer, errors) else {
+                break;
+            };
+
+            chain.push(ElseOrElseIf::Else {
+                block: Some(block),
+                span: anchor.elapsed(lexer),
+            });
+        }
+    }
+
+    Some(IfStatement {
+        first: IfBranch {
+            condition: Some(condition),
+            block: Some(block),
+            span: first_span,
+        },
+        chain,
+        span: anchor.elapsed(lexer),
+    })
 }
 
 fn parse_let_statement<'input>(
